@@ -1,0 +1,73 @@
+version: '3.5'
+services:
+  nginx:
+    image: nginx:1.23.0-alpine 
+    container_name: fakeops-nginx
+    ports:
+      - '8000:80'
+    networks:
+      - fakeops-network
+    volumes:
+      - ./nginx/conf:/etc/nginx/conf.d
+      - ./fakeops:/var/www/fakeops 
+      - ./logs/nginx:/var/log/fpm-php.www.log
+      - ./nginx/conf/default.crt:/etc/nginx/certs/default.crt
+      - ./nginx/conf/default.key:/etc/nginx/certs/default.key
+    depends_on:
+      - php
+    links:
+      - php
+
+  php:
+    image: joseluisq/php-fpm:8.1
+    container_name: fakeops-php
+    environment: 
+      ENV_SUBSTITUTION_ENABLE: "true"
+      PHP_FPM_LISTEN: 9000
+      BASEPATH: /var/www/fakeops
+      CONTEXT: docker
+      PUBLIC_HOST: "http://localhost:8000/"
+    ports:
+      - 9000:9000
+    networks:
+      - fakeops-network
+    volumes:
+      - ./fakeops:/var/www/fakeops
+      - ./logs/php:/var/log
+      - ./php/config:/usr/local/etc/php/conf.d
+      - ./php/fpm.conf:/usr/local/etc/php-fpm.d/default.conf
+
+  databases:
+    container_name: fakeops-mysql
+    image: yobasystems/alpine-mariadb:10.6.11
+    volumes: 
+      - ./data/db:/var/lib/mysql
+      - ./logs/mysql:/var/log/mysql
+      - ./nginx/conf:/etc/my.cnf.d
+    environment:
+      MYSQL_DATABASE: fakeops
+      MYSQL_USER: root 
+      MYSQL_PASSWORD: root 
+      MYSQL_ROOT_PASSWORD: root
+    expose:
+      - "3306"
+    ports:
+      - '3307:3306'
+    networks:
+      - fakeops-network
+    restart: always
+
+  phpmyadmin:
+    image: phpmyadmin
+    container_name: fakeops-phpmyadmin
+    restart: always
+    ports:
+      - 8080:80
+    environment:
+      - PMA_ARBITRARY=1
+      - UPLOAD_LIMIT=300M
+    networks:
+      - fakeops-network
+
+networks:
+  fakeops-network:
